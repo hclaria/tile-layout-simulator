@@ -1,5 +1,7 @@
 # Simulateur Calepinage Pro 🔲
 
+[![Try it live](https://img.shields.io/badge/🚀_Try_it_live-GitHub_Pages-blue?style=for-the-badge)](https://hclaria.github.io/tile-layout-simulator/)
+
 ## L'histoire
 
 Quand j'ai décidé de refaire le carrelage de mes toilettes (oui, mes toilettes 🚽), j'ai cherché partout sur internet un outil simple pour visualiser comment poser mes carreaux avant de me lancer.
