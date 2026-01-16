@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulateur Calepinage Pro - V19 (Coupe Perdue)</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel pour traduire le JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS pour le style -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        .tile-interactive {
+            transition: all 0.1s;
+            cursor: pointer;
+        }
+        .tile-interactive:hover rect {
+            stroke-width: 2px;
+            stroke: #3b82f6; 
+            filter: brightness(0.95);
+        }
+        .user-select-none {
+            user-select: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo } = React;
+
+        // --- ICONES SVG AUTONOMES ---
+        const IconMaximize = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>;
+        const IconGrid = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>;
+        const IconMove = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="22"/></svg>;
+        const IconRotate = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>;
+        const IconHelp = () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>;
+        const IconPen = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>;
+        const IconUndo = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>;
+        const IconEraser = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>;
+        const IconClick = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 9 5 12 1.8-5.2L21 14Z"/><path d="M7.2 2.2 8 5.1"/><path d="m5.1 8-2.9-.8"/><path d="M14 4.1 12 6"/><path d="m6 12-1.9 2"/></svg>;
+        const IconAlert = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>;
+
+        function AdvancedTileSimulator() {
+            // --- Configuration ---
+            const [roomL, setRoomL] = useState(2.6);
+            const [roomW, setRoomW] = useState(1.4);
+            const [tileL, setTileL] = useState(100);
+            const [tileW, setTileW] = useState(15);
+            const [jointSize, setJointSize] = useState(2);
+            const [peripheral, setPeripheral] = useState(5);
+            
+            // --- Calepinage ---
+            // 'random_stagger' = Coupe Perdue
+            const [pattern, setPattern] = useState('random_stagger'); 
+            const [alignmentMode, setAlignmentMode] = useState('start');
+            const [rotation, setRotation] = useState(0);
+
+            // --- Séquence Manuelle ---
+            const [manualSequence, setManualSequence] = useState({}); 
+            const [nextNumber, setNextNumber] = useState(1);
+
+            // --- Interaction ---
+            const [hoveredTile, setHoveredTile] = useState(null);
+
+            // --- CONSTANTES ---
+            const MARGIN = 40; 
+
+            // --- Calculs Moteur ---
+            const analysis = useMemo(() => {
+                const rLen = roomL * 100;
+                const rWid = roomW * 100;
+                // Gestion Rotation
+                const tLen = rotation === 90 ? tileW : tileL;
+                const tWid = rotation === 90 ? tileL : tileW;
+                
+                const joint = jointSize / 10;
+                const periph = peripheral / 10;
+                
+                // Modules
+                const modL = tLen + joint;
+                const modW = tWid + joint;
+
+                const rX1 = periph;
+                const rX2 = rLen - periph;
+                const rY1 = periph;
+                const rY2 = rWid - periph;
+                const visibleRoomW = rX2 - rX1;
+                const visibleRoomH = rY2 - rY1;
+
+                let tiles = [];
+
+                // --- BRANCHE 1 : POSE ALÉATOIRE / COUPE PERDUE ---
+                if (pattern === 'random_stagger') {
+                    // Dans une coupe perdue, on remplit rangée par rangée de haut en bas (ou bas en haut)
+                    // On commence généralement au coin Haut-Gauche pour simplifier la logique de flux
+                    // StartY = position physique du haut de la rangée courante
+                    
+                    let currentY = rY1;
+                    
+                    // "Reste" de la rangée précédente. Par défaut au début, c'est 0 (on commence par un plein)
+                    // ou une valeur si on veut simuler un premier décalage.
+                    // Si le reste est trop petit (ex < 15cm), on repart sur un plein.
+                    
+                    let remainderLen = 0; 
+                    let rowIndex = 0;
+
+                    // Tant qu'on est dans la pièce verticalement
+                    while (currentY < rY2) {
+                        
+                        let currentX = rX1;
+                        // Est-ce qu'on commence avec une chute récupérée ?
+                        let isFirstInRow = true;
+                        
+                        // Si le reste est utilisable (> min chute), on le pose en premier
+                        // Min chute = 15cm ou 20% carreau
+                        const minChute = Math.max(15, tLen * 0.2); 
+                        
+                        // Si on a un reste valide, on commence avec
+                        if (remainderLen > minChute) {
+                            // On pose la chute
+                            // Largeur de ce morceau = remainderLen
+                            const tileWidth = remainderLen;
+                            const tileHeight = tWid; // Hauteur standard
+                            
+                            // Check collision (normalement ok car on commence à Gauche)
+                            if (currentX + tileWidth > rX2) {
+                                // Cas improbable où la chute est plus grande que la pièce entière restante ?
+                                // On coupe juste à la fin
+                            }
+
+                            // Création de la tuile
+                            // Attention : visibleW est potentiellement coupé par le mur de droite si la pièce est minuscule
+                            // Mais ici on pose de G à D.
+                            const actualW = Math.min(tileWidth, rX2 - currentX);
+                            const actualH = Math.min(tileHeight, rY2 - currentY);
+                            
+                            // Risque & Stats
+                            const isRisky = actualW < 3 || actualH < 3; // très basique
+                            const isCut = true; // Une chute est une coupe par définition
+
+                            tiles.push({
+                                id: `${rowIndex}-0-chute`,
+                                gridX: currentX, // Position absolue dans le SVG (pas de grille virtuelle ici)
+                                gridY: currentY,
+                                width: tileWidth, // taille théorique "physique" du morceau
+                                height: tileHeight,
+                                visibleW: actualW,
+                                visibleH: actualH,
+                                isRisky: isRisky,
+                                riskReason: isRisky ? "Trop petit" : null,
+                                isCut: isCut,
+                                percentW: Math.round((actualW / tLen) * 100),
+                                percentH: 100,
+                                orderIndex: manualSequence[`${rowIndex}-0-chute`] || null
+                            });
+                            
+                            currentX += tileWidth + joint;
+                            isFirstInRow = false;
+                        } else {
+                            // Reste trop petit, on le jette. On commence par un carreau plein.
+                            // Ou plutôt : On ne pose rien de spécial, la boucle suivante posera un plein.
+                            remainderLen = 0; 
+                        }
+
+                        let colIndex = isFirstInRow ? 0 : 1;
+
+                        // Remplissage du reste de la ligne avec des entiers
+                        while (currentX < rX2) {
+                            // Carreau Plein standard
+                            const tileWidth = tLen;
+                            const tileHeight = tWid;
+                            
+                            // De combien dépasse-t-on le mur de droite ?
+                            const endPos = currentX + tileWidth;
+                            
+                            let actualW = tileWidth;
+                            let isLast = false; 
+
+                            // Si on dépasse le mur
+                            if (endPos > rX2) {
+                                // C'est le dernier de la ligne qu'on doit couper
+                                actualW = rX2 - currentX;
+                                isLast = true;
+                                
+                                // CALCUL DU RESTE POUR LA LIGNE SUIVANTE
+                                // On a utilisé `actualW` sur le carreau de `tLen`.
+                                // Donc il reste `tLen - actualW`
+                                // MAIS attention au joint ! La chute est le morceau physique.
+                                // Si on coupe à 80cm d'un carreau de 100, il reste 20cm qui deviendra le début de la ligne suivante.
+                                remainderLen = tLen - actualW; // Exact. Pas de perte de joint ici car le joint est "après" le carreau.
+                                
+                            } else {
+                                // On est large, ça rentre entier
+                                actualW = tileWidth;
+                                if (currentX + actualW + joint > rX2) {
+                                   // Cas limite : le joint pousse dehors, ou pile poil.
+                                   // On considère que c'est fini pour cette ligne
+                                   remainderLen = 0; // Pas de chute significative si ça tombe pile ? (Ou carreau entier)
+                                   // En réalité si ça tombe pile poil, reste = 0.
+                                }
+                            }
+
+                            const actualH = Math.min(tileHeight, rY2 - currentY);
+                            
+                            const isRisky = actualW < 3 || actualH < 3;
+                            const isCut = isLast || actualH < tileHeight;
+
+                            tiles.push({
+                                id: `${rowIndex}-${colIndex}`,
+                                gridX: currentX,
+                                gridY: currentY,
+                                width: isLast ? actualW : tileWidth, // Pour l'affichage on dessine ce qu'on voit
+                                height: tileHeight,
+                                visibleW: actualW,
+                                visibleH: actualH,
+                                isRisky,
+                                riskReason: isRisky ? "Trop petit" : null,
+                                isCut,
+                                percentW: Math.round((actualW / tLen) * 100),
+                                percentH: Math.round((actualH / tWid) * 100),
+                                orderIndex: manualSequence[`${rowIndex}-${colIndex}`] || null
+                            });
+
+                            currentX += tileWidth + joint;
+                            colIndex++;
+                        }
+
+                        // Ligne suivante
+                        currentY += tWid + joint;
+                        rowIndex++;
+                    }
+
+                } 
+                // --- BRANCHE 2 : POSE CLASSIQUE SUR GRILLE (Droit, 1/2, 1/3) ---
+                else {
+                    let startX = periph;
+                    let startY = periph;
+                    const centerX = (rLen / 2);
+                    const centerY = (rWid / 2);
+
+                    if (alignmentMode === 'center_tile') {
+                        startX = centerX - (tLen / 2);
+                        startY = centerY - (tWid / 2);
+                    } else if (alignmentMode === 'center_joint') {
+                        startX = centerX + (joint / 2);
+                        startY = centerY + (joint / 2);
+                    }
+                    // 'start' is default (periph, periph)
+
+                    const gridOriginX = startX; 
+                    const gridOriginY = startY;
+
+                    const safetyMargin = 3;
+                    const numCols = Math.ceil(rLen / modL) + safetyMargin;
+                    const numRows = Math.ceil(rWid / modW) + safetyMargin;
+
+                    for (let row = -numRows; row <= numRows; row++) {
+                        for (let col = -numCols; col <= numCols; col++) {
+                            
+                            let offsetX = 0;
+                            if (pattern === 'offset_50' && row % 2 !== 0) offsetX = modL * 0.5;
+                            if (pattern === 'offset_33') offsetX = modL * (row % 3) * 0.33;
+                            
+                            const x = gridOriginX + (col * modL) + offsetX;
+                            const y = gridOriginY + (row * modW);
+
+                            const tX1 = x; 
+                            const tX2 = x + tLen;
+                            const tY1 = y; 
+                            const tY2 = y + tWid;
+
+                            const interLeft = Math.max(tX1, rX1);
+                            const interRight = Math.min(tX2, rX2);
+                            const interTop = Math.max(tY1, rY1);
+                            const interBottom = Math.min(tY2, rY2);
+
+                            if (interRight > interLeft && interBottom > interTop) {
+                                const visibleW = interRight - interLeft;
+                                const visibleH = interBottom - interTop;
+                                const deltaVisX = interLeft - tX1;
+                                const deltaVisY = interTop - tY1;
+                                
+                                const diffW = tLen - visibleW;
+                                const diffH = tWid - visibleH;
+                                const tooSmall = visibleW < 3 || visibleH < 3;
+                                const sliverCutW = diffW > 0.1 && diffW < 1.5;
+                                const sliverCutH = diffH > 0.1 && diffH < 1.5;
+                                const isRisky = tooSmall || sliverCutW || sliverCutH;
+                                const isCut = visibleW < tLen - 0.1 || visibleH < tWid - 0.1;
+                                let riskReason = null;
+                                if (tooSmall) riskReason = "Chute restante trop petite (<3cm)";
+                                else if (sliverCutW) riskReason = `Coupe trop fine en longueur`;
+                                
+                                const tileId = `${row}-${col}`;
+                                const manualNum = manualSequence[tileId];
+
+                                tiles.push({
+                                    id: tileId,
+                                    gridX: x, // Position grille théorique
+                                    gridY: y,
+                                    // Hack visuel pour la Viewbox : si c'est coupé, on dessine la box entière mais l'affichage SVG fera le clip
+                                    // Cependant pour "Coupe Perdue" j'ai calculé les vraies coords.
+                                    // Ici on garde la logique "Grille + ClipPath" du SVG.
+                                    // Pour homogénéiser les données :
+                                    width: tLen, 
+                                    height: tWid,
+                                    
+                                    // Infos supplémentaires pour tooltip
+                                    deltaVisX, 
+                                    deltaVisY,
+                                    visibleW,
+                                    visibleH,
+                                    
+                                    isRisky,
+                                    riskReason,
+                                    isCut,
+                                    percentW: Math.round((visibleW / tLen) * 100),
+                                    percentH: Math.round((visibleH / tWid) * 100),
+                                    orderIndex: manualNum || null
+                                });
+                            }
+                        }
+                    }
+                }
+                
+                return {
+                    tiles,
+                    totalTiles: tiles.length,
+                    cuts: tiles.filter(t => t.isCut).length,
+                    riskyCuts: tiles.filter(t => t.isRisky),
+                    dimsCM: { w: rLen, h: rWid },
+                    periphCM: periph,
+                    isRandomMode: pattern === 'random_stagger'
+                };
+            }, [roomL, roomW, tileL, tileW, jointSize, peripheral, pattern, alignmentMode, rotation, manualSequence]); 
+
+            // --- Handlers UI ---
+
+            const handleTileClick = (tileId) => {
+                setManualSequence(prev => {
+                    const newSeq = { ...prev };
+                    if (newSeq[tileId] !== undefined) {
+                        if (newSeq[tileId] === nextNumber - 1) {
+                            delete newSeq[tileId];
+                            setNextNumber(n => n - 1);
+                        }
+                        return newSeq;
+                    }
+                    newSeq[tileId] = nextNumber;
+                    setNextNumber(n => n + 1);
+                    return newSeq;
+                });
+            };
+
+            const undoLast = () => {
+                if (nextNumber > 1) {
+                    const lastNum = nextNumber - 1;
+                    const entry = Object.entries(manualSequence).find(([k, v]) => v === lastNum);
+                    if (entry) {
+                        const newSeq = { ...manualSequence };
+                        delete newSeq[entry[0]];
+                        setManualSequence(newSeq);
+                        setNextNumber(lastNum);
+                    }
+                }
+            };
+
+            const resetSequence = () => {
+                if (window.confirm("Tout effacer ?")) {
+                    setManualSequence({});
+                    setNextNumber(1);
+                }
+            };
+
+            const handleMouseEnter = (e, tile) => {
+                setHoveredTile({ data: tile, x: e.clientX, y: e.clientY });
+            };
+
+            const handleMouseMove = (e) => {
+                if (hoveredTile) {
+                    setHoveredTile(prev => ({ ...prev, x: e.clientX, y: e.clientY }));
+                }
+            };
+
+            const handleMouseLeave = () => {
+                setHoveredTile(null);
+            };
+
+            const vbWidth = analysis.dimsCM.w + (MARGIN * 2); 
+            const vbHeight = analysis.dimsCM.h + (MARGIN * 2);
+
+            // Helpers Textes
+            const getPatternHelp = () => {
+                if (pattern === 'straight') return "Alignez les joints de tous les carreaux.";
+                if (pattern === 'offset_50') return "Posez la première ligne, puis décalez la suivante de moitié.";
+                if (pattern === 'offset_33') return "Décalez chaque rangée d'un tiers.";
+                if (pattern === 'random_stagger') return "Méthode économique : la chute de fin de ligne démarre la suivante.";
+                return "";
+            };
+
+            const getAlignHelp = () => {
+                if (pattern === 'random_stagger') return "En coupe perdue, on part toujours d'un coin.";
+                if (alignmentMode === 'start') return "Départ depuis le coin.";
+                if (alignmentMode === 'center_tile') return "Premier carreau centré.";
+                if (alignmentMode === 'center_joint') return "Centre de la pièce sur un joint.";
+                return "";
+            };
+
+            return (
+                <div className="flex flex-col lg:flex-row gap-6 p-6 min-h-screen font-sans">
+                
+                {/* --- SIDEBAR --- */}
+                <div className="w-full lg:w-96 flex-shrink-0 space-y-6">
+                    <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                        <h2 className="text-lg font-bold flex items-center gap-2 mb-4 text-slate-700">
+                            <IconMaximize /> Pièce (en m)
+                        </h2>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-xs font-semibold text-slate-500 uppercase">Longueur</label>
+                                <input type="number" step="0.01" value={roomL} onChange={e => setRoomL(Number(e.target.value))} className="w-full mt-1 p-2 border rounded" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-semibold text-slate-500 uppercase">Largeur</label>
+                                <input type="number" step="0.01" value={roomW} onChange={e => setRoomW(Number(e.target.value))} className="w-full mt-1 p-2 border rounded" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                        <h2 className="text-lg font-bold flex items-center gap-2 mb-4 text-slate-700">
+                            <IconGrid /> Carrelage (en cm)
+                        </h2>
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="text-xs font-semibold text-slate-500 uppercase">Longueur</label>
+                                <input type="number" value={tileL} onChange={e => setTileL(Number(e.target.value))} className="w-full mt-1 p-2 border rounded" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-semibold text-slate-500 uppercase">Largeur</label>
+                                <input type="number" value={tileW} onChange={e => setTileW(Number(e.target.value))} className="w-full mt-1 p-2 border rounded" />
+                            </div>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-semibold text-slate-500 uppercase flex justify-between">
+                                    <span>Joint entre carreaux</span>
+                                    <span className="text-blue-600">{jointSize} mm</span>
+                                </label>
+                                <input type="range" min="1" max="10" step="0.5" value={jointSize} onChange={e => setJointSize(Number(e.target.value))} className="w-full mt-1" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-semibold text-slate-500 uppercase flex justify-between">
+                                    <span>Joint périphérique (mur)</span>
+                                    <span className="text-blue-600">{peripheral} mm</span>
+                                </label>
+                                <input type="range" min="0" max="20" step="1" value={peripheral} onChange={e => setPeripheral(Number(e.target.value))} className="w-full mt-1" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                        <h2 className="text-lg font-bold flex items-center gap-2 mb-4 text-slate-700">
+                            <IconMove /> Pose & Alignement
+                        </h2>
+                        
+                        <div className="space-y-6">
+                            <div>
+                                <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Type de pose</label>
+                                <select value={pattern} onChange={e => setPattern(e.target.value)} className="w-full p-2 border rounded bg-slate-50">
+                                    <option value="straight">Pose Droite (Alignée)</option>
+                                    <option value="offset_50">Pose Décalée 1/2 (Quinconce)</option>
+                                    <option value="offset_33">Pose Décalée 1/3 (Escalier)</option>
+                                    <option value="random_stagger">Coupe Perdue (Aléatoire)</option>
+                                </select>
+                                <div className="mt-2 text-xs text-blue-800 bg-blue-50 p-2 rounded flex items-start gap-2">
+                                    <span className="mt-0.5 flex-shrink-0"><IconHelp /></span>
+                                    {getPatternHelp()}
+                                </div>
+                            </div>
+
+                            {/* En mode random, l'alignement est forcé */}
+                            <div className={pattern === 'random_stagger' ? 'opacity-50 pointer-events-none' : ''}>
+                                <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Point de départ</label>
+                                <select value={alignmentMode} onChange={e => setAlignmentMode(e.target.value)} className="w-full p-2 border rounded bg-slate-50">
+                                    <option value="start">Départ Coin</option>
+                                    <option value="center_tile">Centrer Carreau</option>
+                                    <option value="center_joint">Centrer Joint</option>
+                                </select>
+                                <div className="mt-2 text-xs text-blue-800 bg-blue-50 p-2 rounded flex items-start gap-2">
+                                    <span className="mt-0.5 flex-shrink-0"><IconHelp /></span>
+                                    {getAlignHelp()}
+                                </div>
+                            </div>
+
+                            <button 
+                                onClick={() => setRotation(r => r === 0 ? 90 : 0)}
+                                className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-slate-100 hover:bg-slate-200 rounded text-sm font-medium transition"
+                            >
+                                <IconRotate /> Pivoter les carreaux ({rotation}°)
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* --- ORDRE DE POSE MANUEL --- */}
+                    <div className="bg-blue-50 p-5 rounded-xl shadow-sm border border-blue-200">
+                        <div className="flex justify-between items-start mb-4">
+                            <h2 className="text-lg font-bold flex items-center gap-2 text-blue-800">
+                                <IconPen /> Ordre de Pose
+                            </h2>
+                            <div className="bg-white px-2 py-1 rounded border border-blue-200 font-mono text-lg font-bold text-blue-600">
+                                #{nextNumber}
+                            </div>
+                        </div>
+                        <p className="text-xs text-blue-700 mb-4">
+                            Cliquez sur les carreaux pour définir l'ordre.
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                             <button 
+                                onClick={undoLast}
+                                disabled={nextNumber <= 1}
+                                className="flex items-center justify-center gap-2 py-2 px-3 bg-white border border-blue-200 text-blue-700 hover:bg-blue-100 rounded text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition"
+                            >
+                                <IconUndo /> Annuler
+                            </button>
+                            <button 
+                                onClick={resetSequence}
+                                className="flex items-center justify-center gap-2 py-2 px-3 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded text-sm font-semibold transition"
+                            >
+                                <IconEraser /> Effacer
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Stats Panel */}
+                    <div className="bg-slate-800 text-white p-5 rounded-xl shadow-sm">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-slate-400 text-sm">Carreaux totaux</span>
+                            <span className="text-2xl font-bold">{analysis.totalTiles}</span>
+                        </div>
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-slate-400 text-sm">Quantité Coupes</span>
+                            <span className="font-semibold">{analysis.cuts}</span>
+                        </div>
+                        {analysis.riskyCuts.length > 0 && (
+                            <div className="mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded text-sm text-red-100 flex items-start gap-2">
+                            <span className="mt-0.5 flex-shrink-0"><IconAlert /></span>
+                            <span>Attention: {analysis.riskyCuts.length} coupes problématiques.</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* --- VISUALIZER --- */}
+                <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden relative" style={{minHeight: "500px"}}>
+                    <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                        <h3 className="font-semibold text-slate-700 flex items-center gap-2">
+                           <IconClick /> Vue 2D Interactive
+                        </h3>
+                        <div className="flex gap-4 text-xs">
+                            <div className="flex items-center gap-1"><div className="w-3 h-3 bg-blue-100 border border-blue-300"></div> Entier</div>
+                            <div className="flex items-center gap-1"><div className="w-3 h-3 bg-amber-100 border border-amber-300"></div> Coupe OK</div>
+                            <div className="flex items-center gap-1"><div className="w-3 h-3 bg-red-200 border border-red-400"></div> Problème</div>
+                        </div>
+                    </div>
+                    
+                    <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-100 relative cursor-crosshair user-select-none">
+                    
+                    <svg 
+                        width="100%" 
+                        height="100%" 
+                        viewBox={`0 0 ${vbWidth} ${vbHeight}`} 
+                        preserveAspectRatio="xMidYMid meet"
+                    >
+                        <defs>
+                        {/* ClipPath seulement pour la méthode grille, la méthode random gère ses coupes manuellement */}
+                        <clipPath id="roomInnerClip">
+                            <rect 
+                            x={MARGIN + analysis.periphCM} 
+                            y={MARGIN + analysis.periphCM} 
+                            width={analysis.dimsCM.w - (2 * analysis.periphCM)} 
+                            height={analysis.dimsCM.h - (2 * analysis.periphCM)} 
+                            />
+                        </clipPath>
+                        </defs>
+
+                        {/* Fond */}
+                        <rect 
+                        x={MARGIN} y={MARGIN} 
+                        width={analysis.dimsCM.w} 
+                        height={analysis.dimsCM.h} 
+                        fill="#e2e8f0" 
+                        stroke="#cbd5e1"
+                        strokeWidth="0.5"
+                        />
+
+                        {/* Carreaux */}
+                        {/* Si Random Mode : Pas de clip global pour éviter les bugs de scroll, on a calculé les dimensions exactes.
+                            Si Grid Mode : Clip global nécessaire pour simuler le carrelage infini coupé. */}
+                        <g clipPath={analysis.isRandomMode ? undefined : "url(#roomInnerClip)"}>
+                        {analysis.tiles.map((t, i) => {
+                            let fillColor = "#dbeafe";
+                            let strokeColor = "#93c5fd";
+                            let strokeW = "0.5";
+                            
+                            if (t.isCut) {
+                                fillColor = "#fef3c7";
+                                strokeColor = "#fcd34d";
+                            }
+                            if (t.isRisky) {
+                                fillColor = "#fecaca";
+                                strokeColor = "#f87171";
+                            }
+
+                            const isHovered = hoveredTile && hoveredTile.data.id === t.id;
+                            const isNumbered = t.orderIndex !== null;
+
+                            if (isHovered) {
+                                strokeColor = "#3b82f6";
+                                strokeW = "2"; 
+                            }
+                            
+                            if (isNumbered) {
+                                strokeColor = "#1e40af"; 
+                                strokeW = "1.5";
+                                if (!t.isCut && !t.isRisky) fillColor = "#bfdbfe";
+                            }
+
+                            const fontSize = Math.min(10, Math.min(t.visibleW, t.visibleH) / 2);
+                            const showNumber = t.visibleW > 4 && t.visibleH > 4;
+
+                            // Position du texte
+                            // Si Random : pas de deltaVisX car gridX est le vrai X
+                            const dX = analysis.isRandomMode ? 0 : t.deltaVisX;
+                            const dY = analysis.isRandomMode ? 0 : t.deltaVisY;
+                            const textX = MARGIN + t.gridX + dX + (t.visibleW / 2);
+                            const textY = MARGIN + t.gridY + dY + (t.visibleH / 2);
+
+                            return (
+                                <g 
+                                    key={t.id} 
+                                    className="tile-interactive"
+                                    onClick={() => handleTileClick(t.id)}
+                                    onMouseEnter={(e) => handleMouseEnter(e, t)}
+                                    onMouseMove={handleMouseMove}
+                                    onMouseLeave={handleMouseLeave}
+                                >
+                                    <rect
+                                        x={MARGIN + t.gridX}
+                                        y={MARGIN + t.gridY}
+                                        width={analysis.isRandomMode ? t.width : t.width} 
+                                        // En Random, t.width est le calculé. En Grid, c'est le Full Tile.
+                                        // Mais en Random nous devons afficher le visuel.
+                                        height={t.height}
+                                        fill={fillColor}
+                                        stroke={strokeColor}
+                                        strokeWidth={strokeW}
+                                        vectorEffect="non-scaling-stroke"
+                                    />
+                                    {showNumber && isNumbered && (
+                                        <g>
+                                            <circle cx={textX} cy={textY} r={fontSize * 1.2} fill="#1e40af" opacity="0.9" />
+                                            <text
+                                                x={textX}
+                                                y={textY}
+                                                dy=".35em"
+                                                textAnchor="middle"
+                                                fontSize={fontSize}
+                                                fill="white"
+                                                fontWeight="bold"
+                                                style={{ pointerEvents: 'none' }}
+                                            >
+                                                {t.orderIndex}
+                                            </text>
+                                        </g>
+                                    )}
+                                    {showNumber && isHovered && !isNumbered && (
+                                        <text
+                                            x={textX}
+                                            y={textY}
+                                            dy=".35em"
+                                            textAnchor="middle"
+                                            fontSize={fontSize}
+                                            fill="#3b82f6"
+                                            fontWeight="bold"
+                                            opacity="0.5"
+                                            style={{ pointerEvents: 'none' }}
+                                        >
+                                            {nextNumber}
+                                        </text>
+                                    )}
+                                </g>
+                            )
+                        })}
+                        </g>
+
+                        {/* Joint Périph */}
+                        <path 
+                        d={`
+                            M ${MARGIN} ${MARGIN} 
+                            H ${MARGIN + analysis.dimsCM.w} 
+                            V ${MARGIN + analysis.dimsCM.h} 
+                            H ${MARGIN} Z 
+                            M ${MARGIN + analysis.periphCM} ${MARGIN + analysis.periphCM} 
+                            V ${MARGIN + analysis.dimsCM.h - analysis.periphCM} 
+                            H ${MARGIN + analysis.dimsCM.w - analysis.periphCM} 
+                            V ${MARGIN + analysis.periphCM} Z
+                        `} 
+                        fill="#94a3b8" 
+                        fillOpacity="0.4"
+                        fillRule="evenodd"
+                        style={{ pointerEvents: 'none' }}
+                        />
+                        
+                        <rect 
+                        x={MARGIN} y={MARGIN} 
+                        width={analysis.dimsCM.w} 
+                        height={analysis.dimsCM.h} 
+                        fill="none" 
+                        stroke="#1e293b" 
+                        strokeWidth="1"
+                        pointerEvents="none"
+                        />
+                        
+                        {/* COTE BAS */}
+                        <g transform={`translate(0, 15)`}>
+                            <line 
+                                x1={MARGIN} y1={MARGIN + analysis.dimsCM.h} 
+                                x2={MARGIN + analysis.dimsCM.w} y2={MARGIN + analysis.dimsCM.h} 
+                                stroke="#64748b" strokeWidth="1" 
+                            />
+                            <line 
+                                x1={MARGIN} y1={MARGIN + analysis.dimsCM.h - 2} 
+                                x2={MARGIN} y2={MARGIN + analysis.dimsCM.h + 2} 
+                                stroke="#64748b" strokeWidth="1" 
+                            />
+                            <line 
+                                x1={MARGIN + analysis.dimsCM.w} y1={MARGIN + analysis.dimsCM.h - 2} 
+                                x2={MARGIN + analysis.dimsCM.w} y2={MARGIN + analysis.dimsCM.h + 2} 
+                                stroke="#64748b" strokeWidth="1" 
+                            />
+                            <text 
+                                x={MARGIN + analysis.dimsCM.w / 2} 
+                                y={MARGIN + analysis.dimsCM.h - 3} 
+                                textAnchor="middle" 
+                                fontSize="5" 
+                                fontWeight="bold"
+                                fill="#475569"
+                            >
+                                {roomL} m
+                            </text>
+                        </g>
+
+                        {/* COTE GAUCHE */}
+                        <g transform={`translate(-15, 0)`}>
+                            <line 
+                                x1={MARGIN} y1={MARGIN} 
+                                x2={MARGIN} y2={MARGIN + analysis.dimsCM.h} 
+                                stroke="#64748b" strokeWidth="1" 
+                            />
+                            <line 
+                                x1={MARGIN - 2} y1={MARGIN} 
+                                x2={MARGIN + 2} y2={MARGIN} 
+                                stroke="#64748b" strokeWidth="1" 
+                            />
+                            <line 
+                                x1={MARGIN - 2} y1={MARGIN + analysis.dimsCM.h} 
+                                x2={MARGIN + 2} y2={MARGIN + analysis.dimsCM.h} 
+                                stroke="#64748b" strokeWidth="1" 
+                            />
+                            <text 
+                                x={MARGIN - 4} 
+                                y={MARGIN + analysis.dimsCM.h / 2} 
+                                textAnchor="middle" 
+                                fontSize="5" 
+                                fontWeight="bold"
+                                fill="#475569"
+                                transform={`rotate(-90, ${MARGIN - 4}, ${MARGIN + analysis.dimsCM.h / 2})`}
+                            >
+                                {roomW} m
+                            </text>
+                        </g>
+                    </svg>
+
+                    {/* INFOBULLE */}
+                    {hoveredTile && (
+                        <div 
+                            className="fixed bg-white/95 backdrop-blur shadow-xl rounded-lg border border-slate-200 p-3 z-50 pointer-events-none w-64 text-sm"
+                            style={{ 
+                                top: hoveredTile.y + 15, 
+                                left: hoveredTile.x + 15,
+                            }}
+                        >
+                            <div className="font-bold text-slate-800 mb-1 border-b border-slate-100 pb-1 flex justify-between">
+                                <span>{hoveredTile.data.isCut ? 'Détail de la coupe' : 'Carreau Entier'}</span>
+                                {hoveredTile.data.orderIndex && <span className="text-blue-600">N° {hoveredTile.data.orderIndex}</span>}
+                            </div>
+                            
+                            <div className="space-y-1 text-slate-600">
+                                <div className="flex justify-between">
+                                    <span>Dimensions visibles:</span>
+                                    <span className="font-mono text-slate-900">
+                                        {hoveredTile.data.visibleW.toFixed(1)} x {hoveredTile.data.visibleH.toFixed(1)} cm
+                                    </span>
+                                </div>
+                                
+                                {hoveredTile.data.isCut && (
+                                    <>
+                                        <div className="flex justify-between">
+                                            <span>Reste longueur:</span>
+                                            <span className={`font-mono`}>
+                                                {hoveredTile.data.percentW}%
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span>Reste largeur:</span>
+                                            <span className={`font-mono`}>
+                                                {hoveredTile.data.percentH}%
+                                            </span>
+                                        </div>
+                                    </>
+                                )}
+
+                                {hoveredTile.data.isRisky && (
+                                    <div className="mt-2 text-red-600 flex flex-col gap-1 bg-red-50 p-2 rounded text-xs border border-red-100">
+                                        <div className="flex items-center gap-1 font-bold">
+                                            <IconAlert size={14}/> <span>Problème détecté</span>
+                                        </div>
+                                        <div>{hoveredTile.data.riskReason}</div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    </div>
+                </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<AdvancedTileSimulator />);
+    </script>
+</body>
+</html>
