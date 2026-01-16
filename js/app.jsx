@@ -1,8 +1,31 @@
 // Calepinage Pro - Main Application Component
 
-const { useState } = React;
+const { useState, useEffect } = React;
+
+// LocalStorage helper
+const STORAGE_KEY = 'calepinage_state';
+
+const loadState = () => {
+    try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+        return null;
+    }
+};
+
+const saveState = (state) => {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+        // Silently fail
+    }
+};
 
 function AdvancedTileSimulator() {
+    // Load saved state
+    const savedState = loadState();
+
     // --- Language ---
     const [language, setLanguage] = useState(getInitialLanguage);
     const { t } = useTranslation(language);
@@ -12,22 +35,32 @@ function AdvancedTileSimulator() {
         localStorage.setItem('calepinage_lang', newLang);
     };
 
-    // --- Configuration ---
-    const [roomL, setRoomL] = useState(2.6);
-    const [roomW, setRoomW] = useState(1.4);
-    const [tileL, setTileL] = useState(100);
-    const [tileW, setTileW] = useState(15);
-    const [jointSize, setJointSize] = useState(2);
-    const [peripheral, setPeripheral] = useState(5);
+    // --- Configuration (with persistence) ---
+    const [roomL, setRoomL] = useState(savedState?.roomL ?? 2.6);
+    const [roomW, setRoomW] = useState(savedState?.roomW ?? 1.4);
+    const [tileL, setTileL] = useState(savedState?.tileL ?? 100);
+    const [tileW, setTileW] = useState(savedState?.tileW ?? 15);
+    const [jointSize, setJointSize] = useState(savedState?.jointSize ?? 2);
+    const [peripheral, setPeripheral] = useState(savedState?.peripheral ?? 5);
     
-    // --- Layout ---
-    const [pattern, setPattern] = useState('random_stagger'); 
-    const [alignmentMode, setAlignmentMode] = useState('start');
-    const [rotation, setRotation] = useState(0);
+    // --- Layout (with persistence) ---
+    const [pattern, setPattern] = useState(savedState?.pattern ?? 'random_stagger'); 
+    const [alignmentMode, setAlignmentMode] = useState(savedState?.alignmentMode ?? 'start');
+    const [rotation, setRotation] = useState(savedState?.rotation ?? 0);
 
-    // --- Manual Sequence ---
-    const [manualSequence, setManualSequence] = useState({}); 
-    const [nextNumber, setNextNumber] = useState(1);
+    // --- Manual Sequence (with persistence) ---
+    const [manualSequence, setManualSequence] = useState(savedState?.manualSequence ?? {}); 
+    const [nextNumber, setNextNumber] = useState(savedState?.nextNumber ?? 1);
+
+    // Auto-save state on changes
+    useEffect(() => {
+        saveState({
+            roomL, roomW, tileL, tileW,
+            jointSize, peripheral, pattern,
+            alignmentMode, rotation,
+            manualSequence, nextNumber
+        });
+    }, [roomL, roomW, tileL, tileW, jointSize, peripheral, pattern, alignmentMode, rotation, manualSequence, nextNumber]);
 
     // --- Interaction ---
     const [hoveredTile, setHoveredTile] = useState(null);

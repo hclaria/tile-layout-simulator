@@ -310,7 +310,7 @@ const getInitialLanguage = () => {
     const browserLang = navigator.language.split('-')[0];
     if (TRANSLATIONS[browserLang]) return browserLang;
     
-    return 'fr';
+    return 'en';
 };
 
 // Translation hook
